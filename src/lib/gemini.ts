@@ -8,16 +8,16 @@ export const GEMINI_MODEL_STORAGE_KEY = 'promptvault_gemini_model';
 export const GEMINI_KEY_STORAGE_KEY = 'promptvault_gemini_api_key';
 
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Ultra Fast & Stable - Recommended)' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Fast & Reliable)' },
-  { id: 'gemini-4-hydrogen', name: 'Gemini 4 Hydrogen (Experimental)' },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite' },
+  { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash (Recommended - High Speed & Intelligence)' },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (Ultra Fast / High Throughput)' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Stable Fallback)' },
+  { id: 'gemini-4-hydrogen', name: 'Gemini 4 Hydrogen (Experimental - Subject to Demand)' },
 ];
 
 export const FALLBACK_MODELS = [
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite',
   'gemini-2.5-flash',
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
 ];
 
 export function getStoredGeminiKey(): string {
@@ -38,9 +38,16 @@ export function setStoredGeminiKey(key: string): void {
 }
 
 export function getSelectedModel(): string {
-  if (typeof window === 'undefined') return 'gemini-2.5-flash';
+  if (typeof window === 'undefined') return 'gemini-3.5-flash';
   const stored = localStorage.getItem(GEMINI_MODEL_STORAGE_KEY);
-  return stored || 'gemini-2.5-flash';
+  // Auto-migrate away from retired models (gemini-2.0, gemini-1.5) or 503-prone gemini-4-hydrogen
+  if (
+    stored &&
+    ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-2.5-flash'].includes(stored)
+  ) {
+    return stored;
+  }
+  return 'gemini-3.5-flash';
 }
 
 export function setSelectedModel(model: string): void {

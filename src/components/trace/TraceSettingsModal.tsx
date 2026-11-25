@@ -13,7 +13,7 @@ export const TraceSettingsModal: React.FC = () => {
   const { isSettingsModalOpen, setIsSettingsModalOpen } = useTraceAssist();
 
   const [apiKey, setApiKey] = useState('');
-  const [model, setModel] = useState('gemini-2.5-flash');
+  const [model, setModel] = useState('gemini-3.5-flash');
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
