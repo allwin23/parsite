@@ -1,8 +1,46 @@
 import { GoogleGenAI } from '@google/genai';
 import type { TraceMessage } from '../types/database';
 
-export const TRACE_SYSTEM_INSTRUCTION =
-  'You are a CLI Trace Prompt Assistant helping a developer steer a coding agent across a realistic 10-15 turn terminal session. Output ONLY the exact next user prompt(s) to paste into the CLI agent—concise, natural, technical, and actionable. Do not write code solutions or conversational filler unless explicitly requested.';
+export const TRACE_SYSTEM_INSTRUCTION = `You are a CLI Trace Prompt Generator. The user is running an autonomous coding agent in a terminal session (10-20 turns per task) and needs realistic, human-like follow-up prompts to steer the agent step by step until the task is complete.
+
+STRICT OUTPUT RULES:
+1. Output ONLY the exact raw prompt text that the user will copy and paste directly into the CLI agent.
+2. NEVER include prefixes, labels, or headers (no "Turn 2:", "Next Prompt:", "Here is your prompt:", or markdown quotes/fences around the prompt).
+3. NEVER write explanations, commentary, greetings, or code solutions unless the user explicitly asks you to explain something.
+4. Keep each prompt natural, concise, and technical—written in first-person developer voice reacting to what the CLI agent just did or missed.
+5. Do not solve the whole task in one giant prompt; pace the steering naturally across turns (inspecting -> narrowing down -> implementing -> testing edge cases -> verifying).`;
+
+export function getInitialWarmupPrompt(initialPrompt: string): string {
+  return `TASK CONTEXT (Already sent to the CLI agent as Turn 1):
+"""
+${initialPrompt}
+"""
+
+The CLI agent has just received this initial task prompt and is exploring the codebase. Generate the immediate next follow-up prompt (Turn 2) to steer or check in on its first findings. Remember: output ONLY the raw prompt text with zero labels or extra commentary.`;
+}
+
+export function cleanPromptOutput(rawText: string): string {
+  let cleaned = rawText.trim();
+  // Strip code block fences if accidentally wrapped
+  if (cleaned.startsWith('```') && cleaned.endsWith('```')) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
+  }
+  // Strip accidental enclosing quotes
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
+  }
+  // Strip accidental "Turn X:", "Next Prompt:", etc. prefixes
+  cleaned = cleaned
+    .replace(
+      /^(Turn\s*\d+[:\-.]?|Next\s*Prompt[:\-.]?|Follow-up\s*Prompt[:\-.]?|Prompt[:\-.]?)\s*/i,
+      ''
+    )
+    .trim();
+  return cleaned;
+}
 
 export const GEMINI_MODEL_STORAGE_KEY = 'promptvault_gemini_model';
 export const GEMINI_KEY_STORAGE_KEY = 'promptvault_gemini_api_key';
@@ -75,19 +113,30 @@ export function buildTurnContext({
 }: BuildTurnContextOptions) {
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
-  // When no conversation history exists yet, use the initial prompt as Turn 1
+  // When no conversation history exists yet, use the initial warm-up message as Turn 1
   if (messages.length === 0) {
     contents.push({
       role: 'user',
       parts: [
         {
-          text: initialPrompt,
+          text: getInitialWarmupPrompt(initialPrompt),
         },
       ],
     });
   } else {
-    // For ongoing turns, use the sliding window of recent 10 messages without force-pinning
-    const recentHistory = messages.slice(-10);
+    // For ongoing turns (Turn 3+):
+    // 1. Initial warm-up context setup as the anchor user message so Gemini always retains the task scope
+    contents.push({
+      role: 'user',
+      parts: [
+        {
+          text: `TASK CONTEXT (Already sent to the CLI agent as Turn 1):\n"""\n${initialPrompt}\n"""`,
+        },
+      ],
+    });
+
+    // 2. Sliding window of recent turns (up to 12 turns)
+    const recentHistory = messages.slice(-12);
     for (const msg of recentHistory) {
       contents.push({
         role: msg.role === 'assistant' ? 'model' : 'user',
@@ -144,7 +193,7 @@ export async function generateTurnPrompt({
 
       const text = response.text || '';
       if (text && text.trim()) {
-        return text.trim();
+        return cleanPromptOutput(text);
       }
     } catch (err: unknown) {
       lastError = err;
