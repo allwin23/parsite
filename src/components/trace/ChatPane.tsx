@@ -5,8 +5,6 @@ import {
   Send,
   Plus,
   BookmarkPlus,
-  ChevronDown,
-  ChevronUp,
   Terminal,
   Bot,
   User,
@@ -65,7 +63,6 @@ export const ChatPane: React.FC = () => {
   } = useTraceAssist();
 
   const [inputPrompt, setInputPrompt] = useState('');
-  const [showInitialPrompt, setShowInitialPrompt] = useState(false);
   const [copiedInitial, setCopiedInitial] = useState(false);
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [savedMsgId, setSavedMsgId] = useState<string | null>(null);
@@ -259,28 +256,8 @@ export const ChatPane: React.FC = () => {
               </>
             )}
           </button>
-
-          <button
-            onClick={() => setShowInitialPrompt(!showInitialPrompt)}
-            className="p-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer"
-            title={showInitialPrompt ? 'Hide Task Prompt' : 'View Task Prompt'}
-          >
-            {showInitialPrompt ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
         </div>
       </div>
-
-      {/* Optional Drawer for Initial Prompt (Not pinned) */}
-      {showInitialPrompt && (
-        <div className="px-4 sm:px-6 py-2.5 bg-slate-100/80 dark:bg-slate-800/40 border-b border-slate-200 dark:border-slate-800 animate-in fade-in">
-          <div className="text-[10px] font-mono text-slate-400 uppercase font-semibold mb-1">
-            Initial Task Prompt:
-          </div>
-          <p className="text-xs font-mono text-slate-800 dark:text-slate-200 whitespace-pre-wrap leading-relaxed">
-            {activeSession.initial_prompt}
-          </p>
-        </div>
-      )}
 
       {/* 2. Pre-Generated Turn Bulletin Queue Strip */}
       <BulletinQueue />
