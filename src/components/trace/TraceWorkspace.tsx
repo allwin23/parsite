@@ -5,6 +5,7 @@ import { ChatPane } from './ChatPane';
 import { NotesPanel } from './NotesPanel';
 import { BatchJsonModal } from './BatchJsonModal';
 import { TraceSettingsModal } from './TraceSettingsModal';
+import { ProjectSystemPromptModal } from './ProjectSystemPromptModal';
 
 const TraceWorkspaceInner: React.FC = () => {
   return (
@@ -21,6 +22,7 @@ const TraceWorkspaceInner: React.FC = () => {
       {/* Modals */}
       <BatchJsonModal />
       <TraceSettingsModal />
+      <ProjectSystemPromptModal />
     </div>
   );
 };

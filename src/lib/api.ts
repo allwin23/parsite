@@ -104,6 +104,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
       name: input.name.trim(),
       description: input.description?.trim() || null,
       color: input.color || '#3b82f6',
+      system_prompt: input.system_prompt || null,
       created_at: now,
       updated_at: now,
       prompt_count: 0,
@@ -120,6 +121,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
         name: input.name.trim(),
         description: input.description?.trim() || null,
         color: input.color || '#3b82f6',
+        system_prompt: input.system_prompt || null,
       },
     ])
     .select()

@@ -11,6 +11,7 @@ import {
   FileJson,
   Check,
   X,
+  Sliders,
 } from 'lucide-react';
 import { useTraceAssist } from '../../context/TraceAssistContext';
 import { getTodayDateLabel } from '../../lib/traceApi';
@@ -21,6 +22,7 @@ export const DaySidebar: React.FC = () => {
     days,
     activeDayId,
     setActiveDayId,
+    activeDay,
     createDay,
     deleteDay,
     exportDayJson,
@@ -32,6 +34,7 @@ export const DaySidebar: React.FC = () => {
     setSearchQuery,
     setIsBatchModalOpen,
     setIsSettingsModalOpen,
+    setIsProjectPromptModalOpen,
     createSession,
     batchProgress,
   } = useTraceAssist();
@@ -180,6 +183,20 @@ export const DaySidebar: React.FC = () => {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
+                onClick={() => setIsProjectPromptModalOpen(true)}
+                className={`text-[11px] flex items-center gap-1 px-1.5 py-0.5 rounded transition-colors cursor-pointer ${
+                  activeDay?.system_prompt
+                    ? 'text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 font-semibold'
+                    : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title={`Configure System Instruction for folder "${activeDay?.day_label || 'Current'}" (Currently ${activeDay?.system_prompt ? 'Custom' : 'Global Default'})`}
+              >
+                <Sliders className="w-3 h-3" />
+                <span>{activeDay?.system_prompt ? 'Prompt: Custom' : 'Prompt'}</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handleCopyDayJson}
                 className="text-[11px] text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 title="Copy all tasks in active folder as JSON"
@@ -278,6 +295,12 @@ export const DaySidebar: React.FC = () => {
                   >
                     <Calendar className="w-3.5 h-3.5" />
                     <span>{day.day_label}</span>
+                    {day.system_prompt && (
+                      <span
+                        title="Custom System Instruction configured for this folder"
+                        className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0"
+                      />
+                    )}
                     <span className="text-[10px] px-1 py-0.2 rounded-full bg-black/10 dark:bg-black/20 font-mono">
                       {day.session_count || 0}
                     </span>

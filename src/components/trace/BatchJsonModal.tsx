@@ -18,6 +18,7 @@ export const BatchJsonModal: React.FC = () => {
   const [destinationMode, setDestinationMode] = useState<'existing' | 'new'>('existing');
   const [selectedDayId, setSelectedDayId] = useState<string>(activeDayId || '');
   const [newFolderName, setNewFolderName] = useState<string>('');
+  const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('');
 
   const [jsonInput, setJsonInput] = useState<string>(() => {
     return JSON.stringify(
@@ -137,7 +138,8 @@ export const BatchJsonModal: React.FC = () => {
 
     if (destinationMode === 'new') {
       const folderName = newFolderName.trim() || getTodayDateLabel();
-      const created = await createDay(folderName);
+      const promptToUse = customSystemPrompt.trim() ? customSystemPrompt.trim() : null;
+      const created = await createDay(folderName, promptToUse);
       targetDay = created.id;
     }
 
@@ -235,6 +237,24 @@ export const BatchJsonModal: React.FC = () => {
                 />
               )}
             </div>
+
+            {destinationMode === 'new' && (
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-700/80 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    System Instruction for New Folder (Optional)
+                  </span>
+                  <span className="text-slate-400">Leave blank to use Global Default</span>
+                </div>
+                <textarea
+                  rows={2}
+                  placeholder="Leave empty to inherit standard CLI Trace prompt generator, or specify custom steering instructions..."
+                  value={customSystemPrompt}
+                  onChange={(e) => setCustomSystemPrompt(e.target.value)}
+                  className="w-full px-2.5 py-1.5 text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+                />
+              </div>
+            )}
           </div>
 
           <div>

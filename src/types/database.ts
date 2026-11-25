@@ -15,6 +15,7 @@ export interface Project {
   name: string;
   description: string | null;
   color: string;
+  system_prompt?: string | null;
   created_at: string;
   updated_at: string;
   prompt_count?: number;
@@ -37,6 +38,7 @@ export type CreateProjectInput = {
   name: string;
   description?: string;
   color?: string;
+  system_prompt?: string | null;
 };
 
 export type UpdateProjectInput = Partial<CreateProjectInput>;
@@ -60,9 +62,17 @@ export type TraceSessionStatus = 'warming' | 'ready' | 'active' | 'completed';
 export interface TraceDay {
   id: string;
   day_label: string; // e.g. "2026-11-25"
+  system_prompt?: string | null;
   created_at: string;
   session_count?: number;
 }
+
+export type CreateTraceDayInput = {
+  day_label: string;
+  system_prompt?: string | null;
+};
+
+export type UpdateTraceDayInput = Partial<CreateTraceDayInput>;
 
 export interface TraceSession {
   id: string;

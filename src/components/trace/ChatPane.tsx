@@ -55,11 +55,13 @@ const TEMPLATES_STORAGE_KEY = 'promptvault_steering_templates';
 export const ChatPane: React.FC = () => {
   const {
     activeSession,
+    activeDay,
     messages,
     isGeneratingTurn,
     sendTurnMessage,
     saveToBulletin,
     updateSessionStatus,
+    setIsProjectPromptModalOpen,
   } = useTraceAssist();
 
   const [inputPrompt, setInputPrompt] = useState('');
@@ -239,6 +241,20 @@ export const ChatPane: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setIsProjectPromptModalOpen(true)}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 text-xs font-mono font-medium rounded-lg border transition-colors cursor-pointer shadow-2xs ${
+              activeDay?.system_prompt
+                ? 'border-purple-300 dark:border-purple-800 bg-purple-50 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/60 font-semibold'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
+            }`}
+            title={`Folder System Instruction (${activeDay?.system_prompt ? 'Custom' : 'Global Default'}) — click to configure`}
+          >
+            <Bot className="w-3.5 h-3.5 text-blue-500" />
+            <span>Prompt: {activeDay?.system_prompt ? 'Custom' : 'Default'}</span>
+          </button>
+
           <button
             onClick={handleCopyInitialPrompt}
             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shadow-2xs"

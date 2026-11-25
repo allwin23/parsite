@@ -30,7 +30,11 @@ interface TraceAssistContextType {
   activeDayId: string | null;
   activeDay: TraceDay | null;
   setActiveDayId: (id: string) => void;
-  createDay: (label: string) => Promise<TraceDay>;
+  createDay: (label: string, systemPrompt?: string | null) => Promise<TraceDay>;
+  updateDay: (
+    id: string,
+    updates: Partial<{ day_label: string; system_prompt: string | null }>
+  ) => Promise<TraceDay>;
   deleteDay: (id: string) => Promise<void>;
   exportDayJson: (targetDayId?: string) => string;
 
@@ -67,6 +71,8 @@ interface TraceAssistContextType {
   setIsBatchModalOpen: (open: boolean) => void;
   isSettingsModalOpen: boolean;
   setIsSettingsModalOpen: (open: boolean) => void;
+  isProjectPromptModalOpen: boolean;
+  setIsProjectPromptModalOpen: (open: boolean) => void;
   batchProgress: BatchProgress;
   launchBatchTasks: (tasks: BatchTaskItem[], targetDayId?: string) => Promise<void>;
 
@@ -94,6 +100,7 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState<boolean>(false);
+  const [isProjectPromptModalOpen, setIsProjectPromptModalOpen] = useState<boolean>(false);
   const [batchProgress, setBatchProgress] = useState<BatchProgress>({
     active: false,
     completed: 0,
@@ -233,22 +240,45 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [activeSessionId]
   );
 
-  // 8. Create Custom Day Folder (With any custom name)
-  const handleCreateDay = useCallback(async (label: string) => {
-    try {
-      const created = await traceApi.createTraceDay(label);
-      setDays((prev) => {
-        const exists = prev.find((d) => d.id === created.id || d.day_label === created.day_label);
-        if (exists) return prev;
-        return [created, ...prev];
-      });
-      setActiveDayId(created.id);
-      return created;
-    } catch (err) {
-      console.error('Failed to create day folder:', err);
-      throw err;
-    }
-  }, []);
+  // 8. Create Custom Day Folder (With any custom name and optional system prompt)
+  const handleCreateDay = useCallback(
+    async (label: string, systemPrompt?: string | null) => {
+      try {
+        const created = await traceApi.createTraceDay(label, systemPrompt);
+        setDays((prev) => {
+          const exists = prev.find((d) => d.id === created.id || d.day_label === created.day_label);
+          if (exists) return prev;
+          return [created, ...prev];
+        });
+        setActiveDayId(created.id);
+        return created;
+      } catch (err) {
+        console.error('Failed to create day folder:', err);
+        throw err;
+      }
+    },
+    []
+  );
+
+  // 8b. Update Day Folder (name or custom system prompt)
+  const handleUpdateDay = useCallback(
+    async (
+      dayId: string,
+      updates: Partial<{ day_label: string; system_prompt: string | null }>
+    ) => {
+      try {
+        const updated = await traceApi.updateTraceDay(dayId, updates);
+        setDays((prev) =>
+          prev.map((d) => (d.id === dayId ? { ...d, ...updated } : d))
+        );
+        return updated;
+      } catch (err) {
+        console.error('Failed to update day folder:', err);
+        throw err;
+      }
+    },
+    []
+  );
 
   // 9. Delete Entire Day
   const handleDeleteDay = useCallback(
@@ -318,9 +348,13 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
       setMessages([initialUserMsg]);
 
       // 2. Asynchronously warmup initial prompt with Gemini for Turn 2
+      const currentDay = days.find((d) => d.id === activeDayId);
+      const effectiveSystemPrompt = currentDay?.system_prompt || undefined;
+
       generateTurnPrompt({
         initialPrompt,
         messages: [],
+        systemInstruction: effectiveSystemPrompt,
       })
         .then(async (response) => {
           const assistantMsg = await traceApi.createTraceMessage(
@@ -424,9 +458,13 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setMessages((prev) => [...prev, userMsg]);
 
         // 2. Generate Next Turn with Gemini using sliding window context
+        const currentDay = days.find((d) => d.id === activeSession.day_id);
+        const effectiveSystemPrompt = currentDay?.system_prompt || undefined;
+
         const responseText = await generateTurnPrompt({
           initialPrompt: activeSession.initial_prompt,
           messages: [...messages, userMsg],
+          systemInstruction: effectiveSystemPrompt,
         });
 
         // 3. Commit assistant message
@@ -565,6 +603,9 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       // Step B: Concurrency-controlled worker pool (max 5 concurrent calls)
+      const currentDay = days.find((d) => d.id === destinationDayId);
+      const effectiveSystemPrompt = currentDay?.system_prompt || undefined;
+
       await runWithConcurrency(
         createdSessions,
         async (session) => {
@@ -573,6 +614,7 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             const assistantPrompt = await generateTurnPrompt({
               initialPrompt: session.initial_prompt,
               messages: [],
+              systemInstruction: effectiveSystemPrompt,
             });
 
             // 2. Save Turn 2 assistant response into trace_messages
@@ -642,6 +684,7 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         activeDay,
         setActiveDayId,
         createDay: handleCreateDay,
+        updateDay: handleUpdateDay,
         deleteDay: handleDeleteDay,
         exportDayJson,
         sessions,
@@ -668,6 +711,8 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsBatchModalOpen,
         isSettingsModalOpen,
         setIsSettingsModalOpen,
+        isProjectPromptModalOpen,
+        setIsProjectPromptModalOpen,
         batchProgress,
         launchBatchTasks: handleLaunchBatchTasks,
         isLoadingDays,

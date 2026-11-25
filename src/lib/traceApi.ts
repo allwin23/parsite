@@ -196,18 +196,28 @@ function fetchTraceDaysFallback(): TraceDay[] {
   }));
 }
 
-export async function createTraceDay(dayLabel: string): Promise<TraceDay> {
+export async function createTraceDay(
+  dayLabel: string,
+  systemPrompt?: string | null
+): Promise<TraceDay> {
   const label = dayLabel.trim() || getTodayDateLabel();
   const now = new Date().toISOString();
 
   if (!isSupabaseConfigured) {
     let days = getLocalDays();
     const existing = days.find((d) => d.day_label === label);
-    if (existing) return existing;
+    if (existing) {
+      if (systemPrompt !== undefined) {
+        existing.system_prompt = systemPrompt;
+        saveLocalDays(days);
+      }
+      return existing;
+    }
 
     const newDay: TraceDay = {
       id: 'day-' + Math.random().toString(36).substring(2, 9),
       day_label: label,
+      system_prompt: systemPrompt || null,
       created_at: now,
       session_count: 0,
     };
@@ -224,11 +234,29 @@ export async function createTraceDay(dayLabel: string): Promise<TraceDay> {
       .eq('day_label', label)
       .maybeSingle();
 
-    if (existing) return existing as TraceDay;
+    if (existing) {
+      if (systemPrompt !== undefined && existing.system_prompt !== systemPrompt) {
+        const { data: updated } = await supabase
+          .from('trace_days')
+          .update({ system_prompt: systemPrompt })
+          .eq('id', existing.id)
+          .select()
+          .single();
+        if (updated) return updated as TraceDay;
+      }
+      return existing as TraceDay;
+    }
+
+    const insertPayload: { day_label: string; system_prompt?: string | null } = {
+      day_label: label,
+    };
+    if (systemPrompt !== undefined) {
+      insertPayload.system_prompt = systemPrompt;
+    }
 
     const { data, error } = await supabase
       .from('trace_days')
-      .insert([{ day_label: label }])
+      .insert([insertPayload])
       .select()
       .single();
 
@@ -243,12 +271,47 @@ export async function createTraceDay(dayLabel: string): Promise<TraceDay> {
     const newDay: TraceDay = {
       id: 'day-' + Math.random().toString(36).substring(2, 9),
       day_label: label,
+      system_prompt: systemPrompt || null,
       created_at: now,
       session_count: 0,
     };
     days = [newDay, ...days];
     saveLocalDays(days);
     return newDay;
+  }
+}
+
+export async function updateTraceDay(
+  dayId: string,
+  updates: Partial<{ day_label: string; system_prompt: string | null }>
+): Promise<TraceDay> {
+  if (!isSupabaseConfigured) {
+    let days = getLocalDays();
+    const updated = days.map((d) => (d.id === dayId ? { ...d, ...updates } : d));
+    saveLocalDays(updated);
+    const target = updated.find((d) => d.id === dayId);
+    if (!target) throw new Error('Day not found');
+    return target;
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('trace_days')
+      .update(updates)
+      .eq('id', dayId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as TraceDay;
+  } catch (err) {
+    console.warn('Supabase update trace day error, using local fallback:', err);
+    let days = getLocalDays();
+    const updated = days.map((d) => (d.id === dayId ? { ...d, ...updates } : d));
+    saveLocalDays(updated);
+    const target = updated.find((d) => d.id === dayId);
+    if (!target) throw new Error('Day not found');
+    return target;
   }
 }
 

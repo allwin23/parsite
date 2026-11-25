@@ -1,7 +1,7 @@
 import { GoogleGenAI } from '@google/genai';
 import type { TraceMessage } from '../types/database';
 
-export const TRACE_SYSTEM_INSTRUCTION = `You are a CLI Trace Prompt Generator. The user is running an autonomous coding agent in a terminal session (10-20 turns per task) and needs realistic, human-like follow-up prompts to steer the agent step by step until the task is complete.
+export const DEFAULT_TRACE_SYSTEM_INSTRUCTION = `You are a CLI Trace Prompt Generator. The user is running an autonomous coding agent in a terminal session (10-20 turns per task) and needs realistic, human-like follow-up prompts to steer the agent step by step until the task is complete.
 
 STRICT OUTPUT RULES:
 1. Output ONLY the exact raw prompt text that the user will copy and paste directly into the CLI agent.
@@ -9,6 +9,58 @@ STRICT OUTPUT RULES:
 3. NEVER write explanations, commentary, greetings, or code solutions unless the user explicitly asks you to explain something.
 4. Keep each prompt natural, concise, and technical—written in first-person developer voice reacting to what the CLI agent just did or missed.
 5. Do not solve the whole task in one giant prompt; pace the steering naturally across turns (inspecting -> narrowing down -> implementing -> testing edge cases -> verifying).`;
+
+export const TRACE_SYSTEM_INSTRUCTION = DEFAULT_TRACE_SYSTEM_INSTRUCTION;
+
+export const GLOBAL_SYSTEM_PROMPT_STORAGE_KEY = 'promptvault_global_system_instruction';
+
+export const SYSTEM_PROMPT_PRESETS = [
+  {
+    id: 'default',
+    title: 'Standard CLI Trace Steerer',
+    description: 'Human-like realistic developer steering over 10-20 turns',
+    instruction: DEFAULT_TRACE_SYSTEM_INSTRUCTION,
+  },
+  {
+    id: 'tdd',
+    title: 'Strict TDD & Test-First Verification',
+    description: 'Forces agent to locate/write test files and run test suites before editing production code',
+    instruction: `You are a Strict TDD CLI Trace Assistant. The user is steering an autonomous coding agent in a terminal. Every prompt MUST steer the agent through rigorous Test-Driven Development:
+1. Output ONLY the exact next prompt text to paste into the terminal—no greetings, headers, or quotes.
+2. Always insist that the agent write or locate reproducible tests first before touching implementation files.
+3. Require the agent to run the test suite and verify test failures before implementing solutions.
+4. Keep prompts concise, technical, and written in a direct developer voice.`,
+  },
+  {
+    id: 'security',
+    title: 'Security & Bug Hunter',
+    description: 'Steers agent to audit edge cases, race conditions, auth bypasses, and sanitization',
+    instruction: `You are a Senior Security & Bug Audit CLI Trace Assistant. The user is steering an autonomous agent in a terminal session.
+1. Output ONLY the raw prompt text with zero headers, quotes, or conversational filler.
+2. Direct the agent to investigate root causes, concurrency races, input sanitization, and security attack vectors.
+3. Never give away the full fix; steer the agent step-by-step through discovery, regression test creation, and targeted patching.
+4. Use a decisive, technical developer voice.`,
+  },
+  {
+    id: 'concise',
+    title: 'Ultra-Minimal Direct Steerer',
+    description: '1-sentence terse developer commands without hesitation',
+    instruction: `You are an Ultra-Minimal CLI Trace Steerer. Output ONLY the single next sentence command for the user to paste into the terminal. Zero explanations, zero formatting, zero Turn headers. Terse, direct, and pragmatic.`,
+  },
+];
+
+export function getGlobalSystemInstruction(): string {
+  if (typeof window === 'undefined') return DEFAULT_TRACE_SYSTEM_INSTRUCTION;
+  const stored = localStorage.getItem(GLOBAL_SYSTEM_PROMPT_STORAGE_KEY);
+  if (stored && stored.trim()) return stored.trim();
+  return DEFAULT_TRACE_SYSTEM_INSTRUCTION;
+}
+
+export function setGlobalSystemInstruction(instruction: string): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(GLOBAL_SYSTEM_PROMPT_STORAGE_KEY, instruction.trim());
+  }
+}
 
 export function getInitialWarmupPrompt(initialPrompt: string): string {
   return `TASK CONTEXT (Already sent to the CLI agent as Turn 1):
@@ -104,6 +156,7 @@ export interface BuildTurnContextOptions {
   initialPrompt: string;
   messages: TraceMessage[];
   newUserMessage?: string;
+  systemInstruction?: string;
 }
 
 export function buildTurnContext({
@@ -161,6 +214,7 @@ export async function generateTurnPrompt({
   initialPrompt,
   messages,
   newUserMessage,
+  systemInstruction,
 }: BuildTurnContextOptions): Promise<string> {
   const apiKey = getStoredGeminiKey();
   const selectedModel = getSelectedModel();
@@ -169,6 +223,11 @@ export async function generateTurnPrompt({
     // Graceful demo simulation fallback when API key is not yet set
     return `[Demo Mode - Set Gemini API Key in Settings for live calls]\nCheck the terminal logs for any warning or error outputs, and verify that the tests are passing with \`npm test\`.`;
   }
+
+  const activeSystemInstruction =
+    systemInstruction && systemInstruction.trim()
+      ? systemInstruction.trim()
+      : getGlobalSystemInstruction();
 
   const ai = new GoogleGenAI({ apiKey });
   const contents = buildTurnContext({ initialPrompt, messages, newUserMessage });
@@ -187,7 +246,7 @@ export async function generateTurnPrompt({
         model: modelToTry,
         contents,
         config: {
-          systemInstruction: TRACE_SYSTEM_INSTRUCTION,
+          systemInstruction: activeSystemInstruction,
         },
       });
 

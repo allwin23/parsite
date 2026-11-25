@@ -29,6 +29,7 @@ export const ProjectModal: React.FC = () => {
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [systemPrompt, setSystemPrompt] = useState('');
   const [color, setColor] = useState('#3b82f6');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -37,10 +38,12 @@ export const ProjectModal: React.FC = () => {
       setName(projectData.name);
       setDescription(projectData.description || '');
       setColor(projectData.color || '#3b82f6');
+      setSystemPrompt(projectData.system_prompt || '');
     } else {
       setName('');
       setDescription('');
       setColor('#3b82f6');
+      setSystemPrompt('');
     }
   }, [editingProject, projectData]);
 
@@ -57,12 +60,14 @@ export const ProjectModal: React.FC = () => {
           name: name.trim(),
           description: description.trim() || undefined,
           color,
+          system_prompt: systemPrompt.trim() ? systemPrompt.trim() : null,
         });
       } else {
         await createProject({
           name: name.trim(),
           description: description.trim() || undefined,
           color,
+          system_prompt: systemPrompt.trim() ? systemPrompt.trim() : null,
         });
       }
     } finally {
@@ -126,6 +131,19 @@ export const ProjectModal: React.FC = () => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               className="w-full px-3.5 py-2 text-sm bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+              Project System Prompt (Optional)
+            </label>
+            <textarea
+              rows={3}
+              placeholder="Custom instructions, persona, or steering rules for tasks in this project..."
+              value={systemPrompt}
+              onChange={(e) => setSystemPrompt(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs font-mono bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
             />
           </div>
 
