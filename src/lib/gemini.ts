@@ -60,29 +60,27 @@ export function buildTurnContext({
   messages,
   newUserMessage,
 }: BuildTurnContextOptions) {
-  // Strategy:
-  // 1. Initial Prompt is always Turn 1 context
-  // 2. Sliding window: only the most recent 10 messages from trace_messages
-  const recentHistory = messages.slice(-10);
-
   const contents: Array<{ role: 'user' | 'model'; parts: Array<{ text: string }> }> = [];
 
-  // Pinned Initial Prompt as Turn 1
-  contents.push({
-    role: 'user',
-    parts: [
-      {
-        text: `[Initial Task Description]:\n${initialPrompt}`,
-      },
-    ],
-  });
-
-  // Recent 10 turns
-  for (const msg of recentHistory) {
+  // When no conversation history exists yet, use the initial prompt as Turn 1
+  if (messages.length === 0) {
     contents.push({
-      role: msg.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: msg.content }],
+      role: 'user',
+      parts: [
+        {
+          text: initialPrompt,
+        },
+      ],
     });
+  } else {
+    // For ongoing turns, use the sliding window of recent 10 messages without force-pinning
+    const recentHistory = messages.slice(-10);
+    for (const msg of recentHistory) {
+      contents.push({
+        role: msg.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: msg.content }],
+      });
+    }
   }
 
   // If a new user message is provided that hasn't yet been committed to history

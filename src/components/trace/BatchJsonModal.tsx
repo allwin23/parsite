@@ -1,10 +1,23 @@
 import React, { useState, useMemo } from 'react';
 import { X, Sparkles, Check, AlertCircle, Upload, Code2 } from 'lucide-react';
 import { useTraceAssist } from '../../context/TraceAssistContext';
+import { getTodayDateLabel } from '../../lib/traceApi';
 import type { BatchTaskItem } from '../../types/database';
 
 export const BatchJsonModal: React.FC = () => {
-  const { isBatchModalOpen, setIsBatchModalOpen, launchBatchTasks, activeDay } = useTraceAssist();
+  const {
+    isBatchModalOpen,
+    setIsBatchModalOpen,
+    launchBatchTasks,
+    days,
+    activeDayId,
+    activeDay,
+    createDay,
+  } = useTraceAssist();
+
+  const [destinationMode, setDestinationMode] = useState<'existing' | 'new'>('existing');
+  const [selectedDayId, setSelectedDayId] = useState<string>(activeDayId || '');
+  const [newFolderName, setNewFolderName] = useState<string>('');
 
   const [jsonInput, setJsonInput] = useState<string>(() => {
     return JSON.stringify(
@@ -18,6 +31,43 @@ export const BatchJsonModal: React.FC = () => {
       2
     );
   });
+
+  const loadDictSample = () => {
+    setJsonInput(
+      JSON.stringify(
+        {
+          'fix-auth-race': 'Investigate why token refresh fails when multiple concurrent requests trigger 401.',
+          'add-redis-cache': 'Implement distributed cache around session validation queries with 5min TTL.',
+          'optimize-vector-indexing': 'Refactor pgvector HNSW index parameters for higher query throughput under load.',
+        },
+        null,
+        2
+      )
+    );
+  };
+
+  const loadArraySample = () => {
+    setJsonInput(
+      JSON.stringify(
+        [
+          {
+            task_name: 'fix-auth-race',
+            prompt: 'Investigate why token refresh fails when multiple concurrent requests trigger 401.',
+          },
+          {
+            task_name: 'add-redis-cache',
+            prompt: 'Implement distributed cache around session validation queries with 5min TTL.',
+          },
+          {
+            task_name: 'optimize-vector-indexing',
+            prompt: 'Refactor pgvector HNSW index parameters for higher query throughput under load.',
+          },
+        ],
+        null,
+        2
+      )
+    );
+  };
 
   const { parsedTasks, error } = useMemo<{ parsedTasks: BatchTaskItem[]; error: string | null }>(() => {
     if (!jsonInput.trim()) {
@@ -83,7 +133,17 @@ export const BatchJsonModal: React.FC = () => {
     e.preventDefault();
     if (parsedTasks.length === 0) return;
 
-    await launchBatchTasks(parsedTasks);
+    let targetDay = selectedDayId || activeDayId;
+
+    if (destinationMode === 'new') {
+      const folderName = newFolderName.trim() || getTodayDateLabel();
+      const created = await createDay(folderName);
+      targetDay = created.id;
+    }
+
+    if (!targetDay) return;
+
+    await launchBatchTasks(parsedTasks, targetDay);
     setIsBatchModalOpen(false);
   };
 
@@ -101,7 +161,7 @@ export const BatchJsonModal: React.FC = () => {
                 Bulk JSON Session Launcher
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Launch 30–50 CLI trace tasks into {activeDay?.day_label || 'today'} with concurrency pool
+                Launch 30–50 CLI trace tasks into existing or new custom folders with concurrency pool
               </p>
             </div>
           </div>
@@ -116,6 +176,67 @@ export const BatchJsonModal: React.FC = () => {
 
         {/* Body */}
         <form onSubmit={handleSubmit} className="p-5 flex-1 overflow-y-auto space-y-4">
+          {/* Destination Folder Selector */}
+          <div className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl space-y-2">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Target Folder
+            </label>
+
+            <div className="flex flex-wrap items-center gap-3 text-xs">
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="destMode"
+                  checked={destinationMode === 'existing'}
+                  onChange={() => setDestinationMode('existing')}
+                  className="text-blue-600"
+                />
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  Existing Folder:
+                </span>
+              </label>
+
+              <select
+                disabled={destinationMode !== 'existing'}
+                value={selectedDayId}
+                onChange={(e) => setSelectedDayId(e.target.value)}
+                className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md disabled:opacity-50 text-xs"
+              >
+                {days.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.day_label} ({d.session_count || 0} sessions)
+                  </option>
+                ))}
+              </select>
+
+              <span className="text-slate-300 dark:text-slate-600">|</span>
+
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="destMode"
+                  checked={destinationMode === 'new'}
+                  onChange={() => setDestinationMode('new')}
+                  className="text-blue-600"
+                />
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  + Create New Folder:
+                </span>
+              </label>
+
+              {destinationMode === 'new' && (
+                <input
+                  type="text"
+                  required={destinationMode === 'new'}
+                  placeholder="e.g. Sprint-24, 2026-11-26, Evals-Run-1"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  className="px-2.5 py-1 text-xs bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md flex-1 min-w-[140px]"
+                />
+              )}
+            </div>
+          </div>
+
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -123,9 +244,24 @@ export const BatchJsonModal: React.FC = () => {
                 Paste JSON (Dict or Array)
               </label>
 
-              <span className="text-[11px] text-slate-400 dark:text-slate-500">
-                Max 5 concurrent Gemini warmups
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400">Sample formats:</span>
+                <button
+                  type="button"
+                  onClick={loadDictSample}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Key-Value Dict
+                </button>
+                <span className="text-slate-300 dark:text-slate-600">·</span>
+                <button
+                  type="button"
+                  onClick={loadArraySample}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Array of Tasks
+                </button>
+              </div>
             </div>
 
             <textarea

@@ -196,6 +196,62 @@ function fetchTraceDaysFallback(): TraceDay[] {
   }));
 }
 
+export async function createTraceDay(dayLabel: string): Promise<TraceDay> {
+  const label = dayLabel.trim() || getTodayDateLabel();
+  const now = new Date().toISOString();
+
+  if (!isSupabaseConfigured) {
+    let days = getLocalDays();
+    const existing = days.find((d) => d.day_label === label);
+    if (existing) return existing;
+
+    const newDay: TraceDay = {
+      id: 'day-' + Math.random().toString(36).substring(2, 9),
+      day_label: label,
+      created_at: now,
+      session_count: 0,
+    };
+    days = [newDay, ...days];
+    saveLocalDays(days);
+    return newDay;
+  }
+
+  try {
+    // Check if exists
+    const { data: existing } = await supabase
+      .from('trace_days')
+      .select('*')
+      .eq('day_label', label)
+      .maybeSingle();
+
+    if (existing) return existing as TraceDay;
+
+    const { data, error } = await supabase
+      .from('trace_days')
+      .insert([{ day_label: label }])
+      .select()
+      .single();
+
+    if (error) throw error;
+    return { ...(data as TraceDay), session_count: 0 };
+  } catch (err) {
+    console.warn('Supabase create trace day error, using local fallback:', err);
+    let days = getLocalDays();
+    const existing = days.find((d) => d.day_label === label);
+    if (existing) return existing;
+
+    const newDay: TraceDay = {
+      id: 'day-' + Math.random().toString(36).substring(2, 9),
+      day_label: label,
+      created_at: now,
+      session_count: 0,
+    };
+    days = [newDay, ...days];
+    saveLocalDays(days);
+    return newDay;
+  }
+}
+
 export async function deleteTraceDay(dayId: string): Promise<void> {
   if (!isSupabaseConfigured) {
     const days = getLocalDays().filter((d) => d.id !== dayId);

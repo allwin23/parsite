@@ -30,7 +30,9 @@ interface TraceAssistContextType {
   activeDayId: string | null;
   activeDay: TraceDay | null;
   setActiveDayId: (id: string) => void;
+  createDay: (label: string) => Promise<TraceDay>;
   deleteDay: (id: string) => Promise<void>;
+  exportDayJson: (targetDayId?: string) => string;
 
   // Sessions
   sessions: TraceSession[];
@@ -66,7 +68,7 @@ interface TraceAssistContextType {
   isSettingsModalOpen: boolean;
   setIsSettingsModalOpen: (open: boolean) => void;
   batchProgress: BatchProgress;
-  launchBatchTasks: (tasks: BatchTaskItem[]) => Promise<void>;
+  launchBatchTasks: (tasks: BatchTaskItem[], targetDayId?: string) => Promise<void>;
 
   // Loading
   isLoadingDays: boolean;
@@ -231,7 +233,24 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [activeSessionId]
   );
 
-  // 8. Delete Entire Day
+  // 8. Create Custom Day Folder (With any custom name)
+  const handleCreateDay = useCallback(async (label: string) => {
+    try {
+      const created = await traceApi.createTraceDay(label);
+      setDays((prev) => {
+        const exists = prev.find((d) => d.id === created.id || d.day_label === created.day_label);
+        if (exists) return prev;
+        return [created, ...prev];
+      });
+      setActiveDayId(created.id);
+      return created;
+    } catch (err) {
+      console.error('Failed to create day folder:', err);
+      throw err;
+    }
+  }, []);
+
+  // 9. Delete Entire Day
   const handleDeleteDay = useCallback(
     async (dayId: string) => {
       try {
@@ -248,7 +267,21 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
     [activeDayId, days]
   );
 
-  // 9. Single Session Creation
+  // 10. Export Day Tasks to JSON (Key-Value Dict or Full Array)
+  const exportDayJson = useCallback(
+    (targetDayId?: string) => {
+      const dayId = targetDayId || activeDayId;
+      const daySessions = sessions.filter((s) => s.day_id === dayId);
+      const dict: Record<string, string> = {};
+      daySessions.forEach((s) => {
+        dict[s.task_name] = s.initial_prompt;
+      });
+      return JSON.stringify(dict, null, 2);
+    },
+    [activeDayId, sessions]
+  );
+
+  // 11. Single Session Creation
   const handleCreateSession = useCallback(
     async (taskName: string, initialPrompt: string) => {
       if (!activeDayId) throw new Error('No active day');
@@ -450,8 +483,9 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   // 16. Simultaneous Execution Engine: Batch Launcher
   const handleLaunchBatchTasks = useCallback(
-    async (tasks: BatchTaskItem[]) => {
-      if (!activeDayId || tasks.length === 0) return;
+    async (tasks: BatchTaskItem[], targetDayId?: string) => {
+      const destinationDayId = targetDayId || activeDayId;
+      if (!destinationDayId || tasks.length === 0) return;
 
       setBatchProgress({ active: true, completed: 0, total: tasks.length });
 
@@ -459,7 +493,7 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const createdSessions: TraceSession[] = [];
       for (const t of tasks) {
         const sess = await traceApi.createTraceSession({
-          day_id: activeDayId,
+          day_id: destinationDayId,
           task_name: t.task_name,
           initial_prompt: t.prompt,
           status: 'warming',
@@ -467,16 +501,18 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         createdSessions.push(sess);
       }
 
-      // Show in sidebar right away
-      setSessions((prev) => [...createdSessions, ...prev]);
+      // Show in sidebar right away if destination is active
+      if (destinationDayId === activeDayId) {
+        setSessions((prev) => [...createdSessions, ...prev]);
+      }
       setDays((prev) =>
         prev.map((d) =>
-          d.id === activeDayId
+          d.id === destinationDayId
             ? { ...d, session_count: (d.session_count || 0) + tasks.length }
             : d
         )
       );
-      if (!activeSessionId && createdSessions.length > 0) {
+      if (!activeSessionId && createdSessions.length > 0 && destinationDayId === activeDayId) {
         setActiveSessionId(createdSessions[0].id);
       }
 
@@ -530,7 +566,9 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         activeDayId,
         activeDay,
         setActiveDayId,
+        createDay: handleCreateDay,
         deleteDay: handleDeleteDay,
+        exportDayJson,
         sessions,
         filteredSessions,
         activeSessionId,
