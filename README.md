@@ -1,111 +1,72 @@
-# PromptVault ⚡
+# PromptVault & Trace Assist ⚡
 
-A clean, fast, minimalist personal **AI Prompt Library** web application built with **Vite (React + TypeScript)**, **Tailwind CSS (v4 via `@tailwindcss/vite`)**, **Lucide React**, and **Supabase (`@supabase/supabase-js`)**.
+A high-performance, minimalist developer web application built with **Vite (React + TypeScript)**, **Tailwind CSS v4 (`@tailwindcss/vite`)**, **Lucide React**, **Supabase (`@supabase/supabase-js`)**, and the **Google Gen AI JavaScript SDK (`@google/genai`)**.
 
-Designed for developers, prompt engineers, and technical leads managing reusable AI prompts across multiple projects with zero bloat and instant 1-click copy-paste workflows.
+PromptVault offers two dedicated top-level workspaces:
+1. **Prompt Library:** A zero-bloat personal repository for reusable AI engineering prompts across projects.
+2. **Trace Assist:** High-volume CLI trace generation module designed for 30–50 parallel sessions per day with 10–20 turns per session using `gemini-4-hydrogen` or `gemini-3.5-flash-lite`.
 
 ---
 
-## ✨ Features
+## ✨ Workspace Overview
 
-- **Two-Level Hierarchy + Global Views:**
-  - **All Prompts:** Global workspace displaying all prompts across every project with project badges.
-  - **Favorites:** Instant access to starred prompts.
-  - **Project Folders:** Filter by project with prompt count badges, custom folder color accents, and hover options.
-- **Lightning Search & Tag Filtering:**
-  - **Real-Time Search (`Cmd/Ctrl + K`):** Instant fuzzy search across titles, prompt content, task tags, and project names.
-  - **Dynamic Tag Filter Pills:** Filter by tags like `#Refactor`, `#SQL`, `#Debugging`, `#Architecture`, `#DevOps` dynamically derived from active prompts.
-- **Prompt Cards & 1-Click Workflows:**
-  - **1-Click Copy:** Copies prompt to clipboard, shows visual confirmation (`Copied!`), and increments usage counter.
-  - **Favorite Star:** Pin/unpin key prompts with optimistic updates.
-  - **Body Preview:** Monospace truncated preview (3-4 lines) for fast scanning.
-  - **Usage Heat Counter:** See which prompts get copied most often.
-- **Distraction-Free Prompt Editor Modal:**
-  - Auto-expanding prompt textarea with a **Monospace / Sans-serif** font toggle.
-  - Live character and word counters.
-  - **Cross-Project Duplication:** Clone any prompt into another project folder without modifying the original.
-  - **Safe Deletions:** Two-step confirmation click prevents accidental data loss.
-- **Resilient Multi-Mode Storage:**
-  - **Supabase Cloud Mode:** When configured, syncs across all devices via PostgreSQL + Row Level Security (RLS).
-  - **Local Storage Mode:** If Supabase credentials are not yet supplied, operates seamlessly with mock starter data in `localStorage` and provides a non-intrusive setup banner with guided instructions.
-- **Developer Aesthetic & Dark Mode:**
-  - High-contrast typography (`Inter` + `JetBrains Mono`).
-  - Native dark/light mode toggle with persistent local preference.
+### 1. 📚 Prompt Library
+- **Two-Level Hierarchy:** "All Prompts", "Favorites", and custom color-accented Project Folders with prompt count badges.
+- **Instant Search (`Cmd/Ctrl + K`):** Real-time search across titles, content, tags, and project names.
+- **Dynamic Tag Filter Pills:** Filter by `#Refactor`, `#SQL`, `#Debugging`, `#Architecture`, etc.
+- **1-Click Copy Workflows:** 1-click clipboard copy with checkmark feedback and automatic usage count tracking.
+- **Distraction-Free Editor Modal:** Monospace/sans toggle, live word/char counters, and cross-project prompt duplication.
+
+### 2. ⚡ Trace Assist (CLI Trace Generation)
+- **Date Folders (`trace_days`):** Automatic daily date folder tree (`YYYY-MM-DD`) with 2-step permanent day wipe.
+- **Bulk JSON Session Launcher:**
+  - Paste either key-value objects (`{ "task-name": "prompt text" }`) or arrays (`[{ "task_name": "...", "prompt": "..." }]`).
+  - Launches 30–50 sessions immediately in `status = 'warming'`.
+  - **5-Worker Concurrency Pool:** Sends initial prompts to Gemini with automatic backoff retry, saves assistant response, and auto-queues first turn in the bulletin.
+- **Turn Bulletin Queue:**
+  - Compact pre-generated turn cards (`#1`, `#2`, `#3`...) to queue future turns while waiting on CLI runs.
+  - 1-click copy marks `is_used = true` and increments session `turn_count`.
+- **Chat Stream & Quick Steering Templates:**
+  - Turn-by-turn stream with sliding-window context (pinned `initial_prompt` Turn 1 + most recent 10 messages).
+  - Every assistant turn includes **1-Click Copy** and **+ Save to Bulletin**.
+  - `+` button in composer opens quick steering templates with custom template creator persisted in `localStorage`.
+- **"Notes to Remember" Scratchpad:**
+  - Collapsible side panel with 500ms debounced autosave to `trace_sessions.notes`.
+  - **Strict Rule:** Notes are strictly local reference and **never** auto-injected into Gemini calls.
+
+---
+
+## 🗄️ Database Schemas
+
+- **Prompt Library:** [`supabase/schema.sql`](./supabase/schema.sql) (`projects`, `prompts`)
+- **Trace Assist:** [`supabase/trace_schema.sql`](./supabase/trace_schema.sql) (`trace_days`, `trace_sessions`, `trace_messages`, `trace_bulletin_items` with cascading deletes)
 
 ---
 
 ## 🚀 Quickstart
 
-### 1. Install & Run Dev Server
 ```bash
-# Navigate to the parsite folder
+# Navigate to project folder
 cd parsite
 
 # Start Vite dev server
 npm run dev
 ```
 
-### 2. Connect Supabase (Optional for Cloud Sync)
+### Environment Variables (.env)
+```env
+# Supabase (optional for cloud sync)
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key-here
 
-1. Create a free project at [supabase.com](https://supabase.com).
-2. Open the **SQL Editor** in your Supabase dashboard.
-3. Copy the contents of [`supabase/schema.sql`](./supabase/schema.sql) and click **Run**. This creates:
-   - `public.projects` table with color accents and timestamps.
-   - `public.prompts` table with cascade delete foreign keys and usage counters.
-   - Row Level Security (RLS) policies for single-user access.
-   - Starter prompts for Frontend Architecture, Backend & APIs, and DevOps.
-4. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-5. Update `.env` with your Supabase credentials:
-   ```env
-   VITE_SUPABASE_URL=https://your-project-id.supabase.co
-   VITE_SUPABASE_ANON_KEY=your-anon-key-here
-   ```
-6. Restart your dev server (`npm run dev`). PromptVault will immediately switch from Local Mode to Cloud Supabase Mode!
-
----
-
-## 🗄️ Database Schema (`supabase/schema.sql`)
-
-### `projects`
-| Column | Type | Default | Description |
-|---|---|---|---|
-| `id` | `uuid` | `gen_random_uuid()` | Primary Key |
-| `name` | `text` | *not null* | Project title |
-| `description`| `text` | `null` | Short project summary |
-| `color` | `text` | `'#3b82f6'` | Hex accent for folder badge |
-| `created_at` | `timestamptz` | `now()` | Timestamp |
-| `updated_at` | `timestamptz` | `now()` | Auto-updating trigger |
-
-### `prompts`
-| Column | Type | Default | Description |
-|---|---|---|---|
-| `id` | `uuid` | `gen_random_uuid()` | Primary Key |
-| `project_id` | `uuid` | *not null* | Foreign Key references `projects(id)` ON DELETE CASCADE |
-| `title` | `text` | *not null* | Prompt title |
-| `content` | `text` | *not null* | Actual prompt body / instructions |
-| `task_tag` | `text` | `null` | Tag (e.g. `SQL`, `Refactor`, `Debugging`) |
-| `is_favorite`| `boolean` | `false` | Starred status |
-| `usage_count`| `integer` | `0` | Increments on copy |
-| `created_at` | `timestamptz` | `now()` | Timestamp |
-| `updated_at` | `timestamptz` | `now()` | Auto-updating trigger |
+# Gemini API Key (optional in .env; can also be set in app Settings)
+VITE_GEMINI_API_KEY=your-gemini-api-key-here
+```
 
 ---
 
 ## ⌨️ Shortcuts & Hotkeys
 
-- <kbd>Cmd</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>K</kbd> : Focus search input from anywhere.
-- <kbd>Esc</kbd> : Blur search or close modals.
-
----
-
-## 🛠️ Build & Production
-```bash
-# Type check and build bundle
-npm run build
-
-# Preview production build locally
-npm run preview
-```
+- <kbd>Cmd</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>K</kbd> : Quick search in Prompt Library & Trace Assist.
+- <kbd>Enter</kbd> : Send turn prompt in Chat composer.
+- <kbd>Shift</kbd> + <kbd>Enter</kbd> : New line in composer.
