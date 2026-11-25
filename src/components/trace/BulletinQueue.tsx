@@ -98,7 +98,12 @@ export const BulletinQueue: React.FC = () => {
     setIsAddingCustom(false);
   };
 
-  const totalQueued = bulletinItems.length + 1; // Turn 1 initial prompt + subsequent turns
+  // Filter out any bulletin item that duplicates activeSession.initial_prompt
+  const subsequentTurns = bulletinItems.filter(
+    (item) => item.prompt_text.trim() !== activeSession.initial_prompt.trim()
+  );
+
+  const totalQueued = 1 + subsequentTurns.length; // Turn 1 initial prompt + subsequent turns
 
   return (
     <>
@@ -113,7 +118,7 @@ export const BulletinQueue: React.FC = () => {
               {totalQueued} in queue
             </span>
             <span className="hidden sm:inline text-[11px] text-slate-400 dark:text-slate-500">
-              — Click any card to inspect full prompt
+              — Click any card to pop up & inspect full prompt
             </span>
           </div>
 
@@ -161,48 +166,36 @@ export const BulletinQueue: React.FC = () => {
             onClick={() =>
               setActiveModal({
                 title: `Turn 1: Initial Task Prompt`,
-                badge: activeSession.task_name,
+                badge: `${activeSession.task_name} (CLI Prompt #1)`,
                 prompt: activeSession.initial_prompt,
                 isInitial: true,
               })
             }
-            className="group shrink-0 w-72 sm:w-80 p-2.5 rounded-xl border border-blue-200 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 hover:border-blue-400 dark:hover:border-blue-700 shadow-2xs hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
+            className="group shrink-0 w-72 sm:w-80 p-2.5 rounded-xl border border-blue-300 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-950/40 hover:border-blue-500 dark:hover:border-blue-600 shadow-2xs hover:shadow-xs transition-all cursor-pointer flex flex-col justify-between"
           >
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold font-mono">
+                  <span className="w-5 h-5 rounded-md bg-blue-600 text-white flex items-center justify-center text-[10px] font-bold font-mono shadow-xs">
                     #1
                   </span>
-                  <span className="text-[10px] font-mono text-blue-700 dark:text-blue-300 bg-blue-100/80 dark:bg-blue-900/60 px-1.5 py-0.2 rounded font-semibold">
+                  <span className="text-[10px] font-mono text-blue-800 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/80 px-1.5 py-0.2 rounded font-semibold">
                     Turn 1 · Initial Prompt
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveModal({
-                      title: `Turn 1: Initial Task Prompt`,
-                      badge: activeSession.task_name,
-                      prompt: activeSession.initial_prompt,
-                      isInitial: true,
-                    });
-                  }}
-                  className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Open full prompt card"
-                >
+                <div className="flex items-center gap-1 text-[11px] text-blue-600 dark:text-blue-400 font-medium">
                   <Maximize2 className="w-3.5 h-3.5" />
-                </button>
+                  <span className="text-[10px]">Pop Up</span>
+                </div>
               </div>
 
-              <p className="text-xs font-mono line-clamp-3 leading-relaxed mb-2 text-slate-800 dark:text-slate-200">
+              <p className="text-xs font-mono line-clamp-3 leading-relaxed mb-2 text-slate-800 dark:text-slate-100">
                 {activeSession.initial_prompt}
               </p>
             </div>
 
-            <div className="pt-2 border-t border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
-              <span className="text-[10px] text-slate-400 font-mono">Turn 1 (Task)</span>
+            <div className="pt-2 border-t border-blue-200/80 dark:border-blue-900/60 flex items-center justify-between">
+              <span className="text-[10px] text-blue-700/80 dark:text-blue-300/80 font-mono font-medium">Turn 1 (Task)</span>
 
               <button
                 type="button"
@@ -229,7 +222,7 @@ export const BulletinQueue: React.FC = () => {
           </div>
 
           {/* Cards #2+: Pre-generated turn prompts */}
-          {bulletinItems.map((item, idx) => {
+          {subsequentTurns.map((item, idx) => {
             const isCopied = copiedId === item.id;
             const isEditing = editingId === item.id;
             const turnNumber = idx + 2;

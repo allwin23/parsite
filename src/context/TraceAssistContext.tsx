@@ -302,7 +302,22 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         )
       );
 
-      // Asynchronously warmup initial prompt with Gemini
+      // 1. Immediately save Turn 1 initial prompt to bulletin items (pos 0) & messages (user)
+      const initialBulletin = await traceApi.createTraceBulletinItem(
+        created.id,
+        initialPrompt,
+        0
+      );
+      const initialUserMsg = await traceApi.createTraceMessage(
+        created.id,
+        'user',
+        initialPrompt
+      );
+
+      setBulletinItems([initialBulletin]);
+      setMessages([initialUserMsg]);
+
+      // 2. Asynchronously warmup initial prompt with Gemini for Turn 2
       generateTurnPrompt({
         initialPrompt,
         messages: [],
@@ -313,11 +328,11 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             'assistant',
             response
           );
-          // Also create first bulletin recommendation
-          const bulletin = await traceApi.createTraceBulletinItem(
+          // Turn 2 follow-up recommendation at position 1
+          const turn2Bulletin = await traceApi.createTraceBulletinItem(
             created.id,
             response,
-            0
+            1
           );
           await traceApi.updateTraceSession(created.id, { status: 'ready' });
 
@@ -328,7 +343,7 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             activeSessionId === created.id ? [...prev, assistantMsg] : prev
           );
           setBulletinItems((prev) =>
-            activeSessionId === created.id ? [...prev, bulletin] : prev
+            activeSessionId === created.id ? [...prev, turn2Bulletin] : prev
           );
         })
         .catch(async (err) => {
@@ -339,10 +354,10 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             'assistant',
             fallbackPrompt
           );
-          const bulletin = await traceApi.createTraceBulletinItem(
+          const turn2Bulletin = await traceApi.createTraceBulletinItem(
             created.id,
             fallbackPrompt,
-            0
+            1
           );
           await traceApi.updateTraceSession(created.id, { status: 'ready' });
 
@@ -353,7 +368,7 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             activeSessionId === created.id ? [...prev, assistantMsg] : prev
           );
           setBulletinItems((prev) =>
-            activeSessionId === created.id ? [...prev, bulletin] : prev
+            activeSessionId === created.id ? [...prev, turn2Bulletin] : prev
           );
         });
 
@@ -527,6 +542,10 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
           initial_prompt: t.prompt,
           status: 'warming',
         });
+        // Immediately save Turn 1 initial prompt into bulletin items (pos 0) & messages (user)
+        await traceApi.createTraceBulletinItem(sess.id, sess.initial_prompt, 0);
+        await traceApi.createTraceMessage(sess.id, 'user', sess.initial_prompt);
+
         createdSessions.push(sess);
       }
 
@@ -556,11 +575,19 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
               messages: [],
             });
 
-            // 2. Save initial assistant response into trace_messages
-            await traceApi.createTraceMessage(session.id, 'assistant', assistantPrompt);
+            // 2. Save Turn 2 assistant response into trace_messages
+            const assistantMsg = await traceApi.createTraceMessage(
+              session.id,
+              'assistant',
+              assistantPrompt
+            );
 
-            // 3. Save first follow-up turn prompt to bulletin queue
-            await traceApi.createTraceBulletinItem(session.id, assistantPrompt, 0);
+            // 3. Save Turn 2 follow-up turn prompt to bulletin queue at position 1
+            const turn2Bulletin = await traceApi.createTraceBulletinItem(
+              session.id,
+              assistantPrompt,
+              1
+            );
 
             // 4. Update session status = 'ready'
             await traceApi.updateTraceSession(session.id, { status: 'ready' });
@@ -569,15 +596,31 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             setSessions((prev) =>
               prev.map((s) => (s.id === session.id ? { ...s, status: 'ready' } : s))
             );
+            if (activeSessionId === session.id) {
+              setMessages((prev) => [...prev, assistantMsg]);
+              setBulletinItems((prev) => [...prev, turn2Bulletin]);
+            }
           } catch (err) {
             console.error(`Error warming session ${session.task_name}:`, err);
             const fallbackPrompt = 'Verify previous step output and execute test suite with npm test.';
-            await traceApi.createTraceMessage(session.id, 'assistant', fallbackPrompt);
-            await traceApi.createTraceBulletinItem(session.id, fallbackPrompt, 0);
+            const assistantMsg = await traceApi.createTraceMessage(
+              session.id,
+              'assistant',
+              fallbackPrompt
+            );
+            const turn2Bulletin = await traceApi.createTraceBulletinItem(
+              session.id,
+              fallbackPrompt,
+              1
+            );
             await traceApi.updateTraceSession(session.id, { status: 'ready' });
             setSessions((prev) =>
               prev.map((s) => (s.id === session.id ? { ...s, status: 'ready' } : s))
             );
+            if (activeSessionId === session.id) {
+              setMessages((prev) => [...prev, assistantMsg]);
+              setBulletinItems((prev) => [...prev, turn2Bulletin]);
+            }
           }
         },
         5, // Concurrency limit
