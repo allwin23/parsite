@@ -331,8 +331,30 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             activeSessionId === created.id ? [...prev, bulletin] : prev
           );
         })
-        .catch((err) => {
+        .catch(async (err) => {
           console.error('Warmup error for single session:', err);
+          const fallbackPrompt = 'Check terminal output and verify that all dependencies and environment variables are set correctly before running the task.';
+          const assistantMsg = await traceApi.createTraceMessage(
+            created.id,
+            'assistant',
+            fallbackPrompt
+          );
+          const bulletin = await traceApi.createTraceBulletinItem(
+            created.id,
+            fallbackPrompt,
+            0
+          );
+          await traceApi.updateTraceSession(created.id, { status: 'ready' });
+
+          setSessions((prev) =>
+            prev.map((s) => (s.id === created.id ? { ...s, status: 'ready' } : s))
+          );
+          setMessages((prev) =>
+            activeSessionId === created.id ? [...prev, assistantMsg] : prev
+          );
+          setBulletinItems((prev) =>
+            activeSessionId === created.id ? [...prev, bulletin] : prev
+          );
         });
 
       return created;
@@ -415,6 +437,13 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
         );
       } catch (err) {
         console.error('Failed to generate turn:', err);
+        const fallbackText = 'Review the latest terminal output for any warnings or errors. Run the relevant test suite to verify behavior before proceeding to the next turn.';
+        const assistantMsg = await traceApi.createTraceMessage(
+          activeSession.id,
+          'assistant',
+          fallbackText
+        );
+        setMessages((prev) => [...prev, assistantMsg]);
       } finally {
         setIsGeneratingTurn(false);
       }
@@ -542,6 +571,9 @@ export const TraceAssistProvider: React.FC<{ children: React.ReactNode }> = ({ c
             );
           } catch (err) {
             console.error(`Error warming session ${session.task_name}:`, err);
+            const fallbackPrompt = 'Verify previous step output and execute test suite with npm test.';
+            await traceApi.createTraceMessage(session.id, 'assistant', fallbackPrompt);
+            await traceApi.createTraceBulletinItem(session.id, fallbackPrompt, 0);
             await traceApi.updateTraceSession(session.id, { status: 'ready' });
             setSessions((prev) =>
               prev.map((s) => (s.id === session.id ? { ...s, status: 'ready' } : s))

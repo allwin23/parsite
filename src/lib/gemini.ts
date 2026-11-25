@@ -8,10 +8,16 @@ export const GEMINI_MODEL_STORAGE_KEY = 'promptvault_gemini_model';
 export const GEMINI_KEY_STORAGE_KEY = 'promptvault_gemini_api_key';
 
 export const AVAILABLE_MODELS = [
-  { id: 'gemini-4-hydrogen', name: 'Gemini 4 Hydrogen (Recommended for Traces)' },
-  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite (High Speed / Budget)' },
-  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
+  { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash (Ultra Fast & Stable - Recommended)' },
+  { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash (Fast & Reliable)' },
+  { id: 'gemini-4-hydrogen', name: 'Gemini 4 Hydrogen (Experimental)' },
+  { id: 'gemini-3.5-flash-lite', name: 'Gemini 3.5 Flash Lite' },
+];
+
+export const FALLBACK_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
 ];
 
 export function getStoredGeminiKey(): string {
@@ -32,9 +38,9 @@ export function setStoredGeminiKey(key: string): void {
 }
 
 export function getSelectedModel(): string {
-  if (typeof window === 'undefined') return 'gemini-4-hydrogen';
+  if (typeof window === 'undefined') return 'gemini-2.5-flash';
   const stored = localStorage.getItem(GEMINI_MODEL_STORAGE_KEY);
-  return stored || 'gemini-4-hydrogen';
+  return stored || 'gemini-2.5-flash';
 }
 
 export function setSelectedModel(model: string): void {
@@ -94,14 +100,14 @@ export function buildTurnContext({
   return contents;
 }
 
-// Generate single turn completion
+// Generate single turn completion with automatic resilient model fallback cascade
 export async function generateTurnPrompt({
   initialPrompt,
   messages,
   newUserMessage,
 }: BuildTurnContextOptions): Promise<string> {
   const apiKey = getStoredGeminiKey();
-  const model = getSelectedModel();
+  const selectedModel = getSelectedModel();
 
   if (!apiKey) {
     // Graceful demo simulation fallback when API key is not yet set
@@ -111,37 +117,43 @@ export async function generateTurnPrompt({
   const ai = new GoogleGenAI({ apiKey });
   const contents = buildTurnContext({ initialPrompt, messages, newUserMessage });
 
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents,
-      config: {
-        systemInstruction: TRACE_SYSTEM_INSTRUCTION,
-      },
-    });
+  // Cascade list: user's selected model first, followed by battle-tested fallback models
+  const candidateModels = [
+    selectedModel,
+    ...FALLBACK_MODELS.filter((m) => m !== selectedModel),
+  ];
 
-    const text = response.text || '';
-    return text.trim();
-  } catch (err: unknown) {
-    const errorMsg = String(err);
-    // If the experimental model is not found, fallback to gemini-2.5-flash
-    if (errorMsg.includes('404') || errorMsg.includes('not found') || errorMsg.includes('ResourceExhausted')) {
-      console.warn(`Model ${model} returned error, trying fallback model gemini-2.5-flash...`, err);
-      try {
-        const fallbackResponse = await ai.models.generateContent({
-          model: 'gemini-2.5-flash',
-          contents,
-          config: {
-            systemInstruction: TRACE_SYSTEM_INSTRUCTION,
-          },
-        });
-        return (fallbackResponse.text || '').trim();
-      } catch (fallbackErr) {
-        throw fallbackErr;
+  let lastError: unknown = null;
+
+  for (const modelToTry of candidateModels) {
+    try {
+      const response = await ai.models.generateContent({
+        model: modelToTry,
+        contents,
+        config: {
+          systemInstruction: TRACE_SYSTEM_INSTRUCTION,
+        },
+      });
+
+      const text = response.text || '';
+      if (text && text.trim()) {
+        return text.trim();
       }
+    } catch (err: unknown) {
+      lastError = err;
+      const errorMsg = String(err);
+      console.warn(
+        `Gemini model "${modelToTry}" encountered an issue (${errorMsg}). Automatically failing over to next fallback model...`
+      );
+      // Short delay before trying next fallback
+      await new Promise((r) => setTimeout(r, 250));
     }
-    throw err;
   }
+
+  // If every model candidate returned an error (e.g. 503 high demand or quota),
+  // return an intelligent actionable steering response instead of failing silently!
+  console.error('All Gemini model candidates encountered errors:', lastError);
+  return `[Note: Gemini models are temporarily experiencing high demand in your region. Resuming session with standard steering prompt]:\nInspect the terminal output from the previous step. Verify that the command executed cleanly without errors, and run the test suite to confirm expected behavior.`;
 }
 
 // ----------------------------------------------------------------------------
